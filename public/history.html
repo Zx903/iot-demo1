@@ -1,0 +1,474 @@
+<!-- public/history.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT 传感器历史数据查询</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card-title {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+        }
+        
+        .chart-container {
+            height: 300px;
+            position: relative;
+            margin-top: 20px;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        th {
+            background: rgba(0, 0, 0, 0.3);
+            font-weight: bold;
+        }
+        
+        tr:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 10px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>IoT 传感器历史数据查询</h1>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <div class="card-title">数据查询</div>
+            <div class="form-group">
+                <label for="queryType">查询类型:</label>
+                <select id="queryType">
+                    <option value="recent">最近数据</option>
+                    <option value="range">时间范围</option>
+                    <option value="stats">统计数据</option>
+                </select>
+            </div>
+            
+            <div class="form-group" id="limitGroup">
+                <label for="limit">数据条数 (最多1000):</label>
+                <input type="number" id="limit" min="1" max="1000" value="100">
+            </div>
+            
+            <div class="form-group" id="rangeGroup" style="display: none;">
+                <label for="startDate">开始时间:</label>
+                <input type="datetime-local" id="startDate">
+                
+                <label for="endDate">结束时间:</label>
+                <input type="datetime-local" id="endDate">
+            </div>
+            
+            <div class="form-group">
+                <label for="deviceId">设备ID (可选):</label>
+                <input type="text" id="deviceId" placeholder="例如: sensor-001">
+            </div>
+            
+            <button class="btn" id="queryBtn">查询数据</button>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">统计信息</div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">最低温度</div>
+                    <div class="stat-value" id="minTemp">--</div>
+                    <div>°C</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">最高温度</div>
+                    <div class="stat-value" id="maxTemp">--</div>
+                    <div>°C</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">平均温度</div>
+                    <div class="stat-value" id="avgTemp">--</div>
+                    <div>°C</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">最低湿度</div>
+                    <div class="stat-value" id="minHum">--</div>
+                    <div>%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">最高湿度</div>
+                    <div class="stat-value" id="maxHum">--</div>
+                    <div>%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">平均湿度</div>
+                    <div class="stat-value" id="avgHum">--</div>
+                    <div>%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <div class="card-title">历史数据趋势</div>
+            <div class="chart-container">
+                <canvas id="historyChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">历史数据表格</div>
+            <div class="table-container">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>设备ID</th>
+                            <th>温度 (°C)</th>
+                            <th>湿度 (%)</th>
+                            <th>时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 数据将通过JavaScript填充 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化图表
+        const historyCtx = document.getElementById('historyChart').getContext('2d');
+        const historyChart = new Chart(historyCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '温度 (°C)',
+                    data: [],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    tension: 0.4,
+                    yAxisID: 'y'
+                }, {
+                    label: '湿度 (%)',
+                    data: [],
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    tension: 0.4,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: '温度 (°C)'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: '湿度 (%)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '时间'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'white'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 查询类型切换
+        document.getElementById('queryType').addEventListener('change', function() {
+            const queryType = this.value;
+            document.getElementById('limitGroup').style.display = 
+                (queryType === 'recent') ? 'block' : 'none';
+            document.getElementById('rangeGroup').style.display = 
+                (queryType === 'range') ? 'block' : 'none';
+        });
+        
+        // 查询按钮事件
+        document.getElementById('queryBtn').addEventListener('click', function() {
+            const queryType = document.getElementById('queryType').value;
+            const deviceId = document.getElementById('deviceId').value;
+            
+            switch(queryType) {
+                case 'recent':
+                    fetchRecentData(deviceId);
+                    break;
+                case 'range':
+                    fetchRangeData(deviceId);
+                    break;
+                case 'stats':
+                    fetchStats(deviceId);
+                    break;
+            }
+        });
+        
+        // 获取最近数据
+        function fetchRecentData(deviceId) {
+            const limit = document.getElementById('limit').value || 100;
+            let url = `/api/history?limit=${limit}`;
+            if (deviceId) url += `&deviceId=${deviceId}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message === 'success') {
+                        updateTable(data.data);
+                        updateChart(data.data);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching recent data:', error);
+                });
+        }
+        
+        // 获取时间范围数据
+        function fetchRangeData(deviceId) {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('请选择开始时间和结束时间');
+                return;
+            }
+            
+            let url = `/api/history/range?start=${startDate}&end=${endDate}`;
+            if (deviceId) url += `&deviceId=${deviceId}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message === 'success') {
+                        updateTable(data.data);
+                        updateChart(data.data);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching range data:', error);
+                });
+        }
+        
+        // 获取统计数据
+        function fetchStats(deviceId) {
+            let url = '/api/stats';
+            if (deviceId) url += `?deviceId=${deviceId}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message === 'success') {
+                        updateStats(data.data);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching stats:', error);
+                });
+        }
+        
+        // 更新表格
+        function updateTable(data) {
+            const tbody = document.querySelector('#dataTable tbody');
+            tbody.innerHTML = '';
+            
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td>${row.device_id}</td>
+                    <td>${parseFloat(row.temperature).toFixed(2)}</td>
+                    <td>${parseFloat(row.humidity).toFixed(2)}</td>
+                    <td>${new Date(row.timestamp).toLocaleString('zh-CN')}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        
+        // 更新图表
+        function updateChart(data) {
+            // 准备图表数据（按时间正序排列）
+            const sortedData = [...data].reverse();
+            const labels = sortedData.map(row => 
+                new Date(row.timestamp).toLocaleTimeString('zh-CN')
+            );
+            const temperatures = sortedData.map(row => parseFloat(row.temperature));
+            const humidities = sortedData.map(row => parseFloat(row.humidity));
+            
+            // 更新图表
+            historyChart.data.labels = labels;
+            historyChart.data.datasets[0].data = temperatures;
+            historyChart.data.datasets[1].data = humidities;
+            historyChart.update();
+        }
+        
+        // 更新统计数据
+        function updateStats(data) {
+            document.getElementById('minTemp').textContent = 
+                data.min_temperature ? parseFloat(data.min_temperature).toFixed(2) : '--';
+            document.getElementById('maxTemp').textContent = 
+                data.max_temperature ? parseFloat(data.max_temperature).toFixed(2) : '--';
+            document.getElementById('avgTemp').textContent = 
+                data.avg_temperature ? parseFloat(data.avg_temperature).toFixed(2) : '--';
+            document.getElementById('minHum').textContent = 
+                data.min_humidity ? parseFloat(data.min_humidity).toFixed(2) : '--';
+            document.getElementById('maxHum').textContent = 
+                data.max_humidity ? parseFloat(data.max_humidity).toFixed(2) : '--';
+            document.getElementById('avgHum').textContent = 
+                data.avg_humidity ? parseFloat(data.avg_humidity).toFixed(2) : '--';
+        }
+        
+        // 页面加载完成后获取初始统计数据
+        window.addEventListener('load', function() {
+            fetchStats();
+        });
+    </script>
+</body>
+</html>
