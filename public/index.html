@@ -1,0 +1,185 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Sensor Data Dashboard</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        
+        .data-display {
+            display: flex;
+            justify-content: space-around;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+        
+        .data-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 10px;
+            text-align: center;
+            min-width: 200px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .data-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .data-label {
+            font-size: 1.1em;
+        }
+        
+        .timestamp {
+            text-align: center;
+            color: #666;
+            margin-top: 20px;
+            font-style: italic;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .device-info {
+            text-align: center;
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>IoT 传感器数据监控面板</h1>
+        
+        <div id="connectionStatus" class="status disconnected">
+            正在连接到服务器...
+        </div>
+        
+        <div id="deviceInfo" class="device-info">
+            设备ID: <span id="deviceId"></span>
+        </div>
+        
+        <div class="data-display">
+            <div class="data-card">
+                <div class="data-label">温度</div>
+                <div id="temperatureValue" class="data-value">--</div>
+                <div>摄氏度 (°C)</div>
+            </div>
+            
+            <div class="data-card">
+                <div class="data-label">湿度</div>
+                <div id="humidityValue" class="data-value">--</div>
+                <div>相对湿度 (%)</div>
+            </div>
+        </div>
+        
+        <div class="timestamp">
+            最后更新时间: <span id="lastUpdated">尚未收到数据</span>
+        </div>
+    </div>
+
+    <script>
+        // 连接到Socket.IO服务器
+        const socket = io();
+        
+        const connectionStatus = document.getElementById('connectionStatus');
+        const temperatureValue = document.getElementById('temperatureValue');
+        const humidityValue = document.getElementById('humidityValue');
+        const lastUpdated = document.getElementById('lastUpdated');
+        const deviceInfo = document.getElementById('deviceInfo');
+        const deviceId = document.getElementById('deviceId');
+        
+        // 监听连接事件
+        socket.on('connect', () => {
+            connectionStatus.textContent = '已连接到服务器';
+            connectionStatus.className = 'status connected';
+        });
+        
+        // 监听断开连接事件
+        socket.on('disconnect', () => {
+            connectionStatus.textContent = '与服务器断开连接';
+            connectionStatus.className = 'status disconnected';
+        });
+        
+        // 监听连接错误
+        socket.on('connect_error', (error) => {
+            connectionStatus.textContent = '连接服务器失败';
+            connectionStatus.className = 'status disconnected';
+            console.error('Connection error:', error);
+        });
+        
+        // 监听传感器数据
+        socket.on('sensorData', (data) => {
+            // 显示设备信息
+            if (data.deviceId) {
+                deviceId.textContent = data.deviceId;
+                deviceInfo.style.display = 'block';
+            }
+            
+            // 更新温度显示
+            if (data.temperature !== undefined) {
+                temperatureValue.textContent = parseFloat(data.temperature).toFixed(1);
+            } else {
+                temperatureValue.textContent = '--';
+            }
+            
+            // 更新湿度显示
+            if (data.humidity !== undefined) {
+                humidityValue.textContent = parseFloat(data.humidity).toFixed(1);
+            } else {
+                humidityValue.textContent = '--';
+            }
+            
+            // 更新时间戳
+            if (data.timestamp) {
+                const date = new Date(data.timestamp);
+                lastUpdated.textContent = date.toLocaleString('zh-CN');
+            } else {
+                lastUpdated.textContent = new Date().toLocaleString('zh-CN');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,437 @@
+<!-- public/dashboard.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT 数据可视化仪表板</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card-title {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+        
+        .current-values {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .value-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 120px;
+        }
+        
+        .value-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .value-label {
+            font-size: 1.1em;
+            opacity: 0.8;
+        }
+        
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .status-item {
+            text-align: center;
+        }
+        
+        .status-value {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .device-id {
+            text-align: center;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 10px;
+            }
+            
+            .current-values {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>IoT 传感器数据可视化仪表板</h1>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <div class="card-title">实时数据监控</div>
+            <div id="deviceIdDisplay" class="device-id">
+                设备ID: <span id="currentDeviceId"></span>
+            </div>
+            <div class="current-values">
+                <div class="value-box">
+                    <div class="value-label">温度</div>
+                    <div id="currentTemp" class="value-number">--</div>
+                    <div>°C</div>
+                </div>
+                <div class="value-box">
+                    <div class="value-label">湿度</div>
+                    <div id="currentHumidity" class="value-number">--</div>
+                    <div>%</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="realtimeChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">历史数据分析</div>
+            <div class="chart-container">
+                <canvas id="historyChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <div class="card-title">系统状态</div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div>连接状态</div>
+                    <div id="connectionStatus" class="status-value">连接中...</div>
+                </div>
+                <div class="status-item">
+                    <div>最后更新</div>
+                    <div id="lastUpdate" class="status-value">--:--:--</div>
+                </div>
+                <div class="status-item">
+                    <div>数据点数</div>
+                    <div id="dataPoints" class="status-value">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化Socket.IO连接
+        const socket = io();
+        
+        // 获取DOM元素
+        const currentTemp = document.getElementById('currentTemp');
+        const currentHumidity = document.getElementById('currentHumidity');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const lastUpdate = document.getElementById('lastUpdate');
+        const dataPoints = document.getElementById('dataPoints');
+        const deviceIdDisplay = document.getElementById('deviceIdDisplay');
+        const currentDeviceId = document.getElementById('currentDeviceId');
+        
+        // 数据存储
+        let temperatureData = [];
+        let humidityData = [];
+        let timestampData = [];
+        let dataCount = 0;
+        
+        // 初始化图表
+        const realtimeCtx = document.getElementById('realtimeChart').getContext('2d');
+        const historyCtx = document.getElementById('historyChart').getContext('2d');
+        
+        // 实时图表配置
+        const realtimeChart = new Chart(realtimeCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '温度 (°C)',
+                    data: [],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    tension: 0.4,
+                    yAxisID: 'y'
+                }, {
+                    label: '湿度 (%)',
+                    data: [],
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    tension: 0.4,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: '温度 (°C)'
+                        },
+                        min: 0,
+                        max: 60
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: '湿度 (%)'
+                        },
+                        min: 0,
+                        max: 100,
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '时间'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'white'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 历史图表配置
+        const historyChart = new Chart(historyCtx, {
+            type: 'bar',
+            data: {
+                labels: ['最小值', '平均值', '最大值'],
+                datasets: [{
+                    label: '温度 (°C)',
+                    data: [0, 0, 0],
+                    backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                }, {
+                    label: '湿度 (%)',
+                    data: [0, 0, 0],
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: 'white'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: 'white'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'white'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Socket.IO事件处理
+        socket.on('connect', () => {
+            connectionStatus.textContent = '已连接';
+            connectionStatus.style.color = '#4CAF50';
+        });
+        
+        socket.on('disconnect', () => {
+            connectionStatus.textContent = '已断开';
+            connectionStatus.style.color = '#F44336';
+        });
+        
+        socket.on('connect_error', (error) => {
+            connectionStatus.textContent = '连接错误';
+            connectionStatus.style.color = '#F44336';
+            console.error('Connection error:', error);
+        });
+        
+        // 处理传感器数据
+        socket.on('sensorData', (data) => {
+            // 显示设备ID
+            if (data.deviceId) {
+                currentDeviceId.textContent = data.deviceId;
+                deviceIdDisplay.style.display = 'block';
+            }
+            
+            // 更新当前值显示
+            if (data.temperature !== undefined) {
+                currentTemp.textContent = parseFloat(data.temperature).toFixed(1);
+            } else {
+                currentTemp.textContent = '--';
+            }
+            
+            if (data.humidity !== undefined) {
+                currentHumidity.textContent = parseFloat(data.humidity).toFixed(1);
+            } else {
+                currentHumidity.textContent = '--';
+            }
+            
+            // 更新时间戳
+            if (data.timestamp) {
+                const now = new Date(data.timestamp);
+                lastUpdate.textContent = now.toLocaleTimeString('zh-CN', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            } else {
+                lastUpdate.textContent = new Date().toLocaleTimeString('zh-CN', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            }
+            
+            // 添加数据到数组
+            if (data.temperature !== undefined && data.humidity !== undefined) {
+                temperatureData.push(parseFloat(data.temperature));
+                humidityData.push(parseFloat(data.humidity));
+                
+                // 使用数据中的时间戳或当前时间
+                const timeLabel = data.timestamp ? 
+                    new Date(data.timestamp).toLocaleTimeString('zh-CN', {
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }) : 
+                    new Date().toLocaleTimeString('zh-CN', {
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                timestampData.push(timeLabel);
+                dataCount++;
+                
+                // 限制数据点数量（只保留最近30个数据点）
+                if (temperatureData.length > 30) {
+                    temperatureData.shift();
+                    humidityData.shift();
+                    timestampData.shift();
+                }
+                
+                // 更新数据点计数
+                dataPoints.textContent = dataCount;
+                
+                // 更新实时图表
+                updateRealtimeChart();
+                
+                // 更新历史统计数据
+                updateHistoryStats();
+            }
+        });
+        
+        // 更新实时图表
+        function updateRealtimeChart() {
+            realtimeChart.data.labels = timestampData;
+            realtimeChart.data.datasets[0].data = temperatureData;
+            realtimeChart.data.datasets[1].data = humidityData;
+            realtimeChart.update();
+        }
+        
+        // 更新历史统计数据
+        function updateHistoryStats() {
+            if (temperatureData.length === 0) return;
+            
+            const tempMin = Math.min(...temperatureData);
+            const tempMax = Math.max(...temperatureData);
+            const tempAvg = temperatureData.reduce((a, b) => a + b, 0) / temperatureData.length;
+            
+            const humMin = Math.min(...humidityData);
+            const humMax = Math.max(...humidityData);
+            const humAvg = humidityData.reduce((a, b) => a + b, 0) / humidityData.length;
+            
+            historyChart.data.datasets[0].data = [tempMin, tempAvg, tempMax];
+            historyChart.data.datasets[1].data = [humMin, humAvg, humMax];
+            historyChart.update();
+        }
+    </script>
+</body>
+</html>
