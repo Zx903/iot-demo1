@@ -62,8 +62,10 @@ client.on('message', (topic, message) => {
       deviceId: rawData.deviceId,
       temperature: rawData.temperature,
       humidity: rawData.humidity,
-      co2: rawData.co2,  // 新增 CO2 浓度
-      ph: rawData.ph,    // 新增 pH 值
+      co2: rawData.co2,
+      ph: rawData.ph,
+      light: rawData.light,          // 新增 光照强度
+      soilMoisture: rawData.soilMoisture, // 新增 土壤湿度
       timestamp: rawData.ts ? new Date(rawData.ts).toISOString() : new Date().toISOString()
     };
     
@@ -80,8 +82,10 @@ client.on('message', (topic, message) => {
       device_id: data.deviceId || 'unknown',
       temperature: parseFloat(data.temperature),
       humidity: parseFloat(data.humidity),
-      co2: parseFloat(data.co2),  // 新增 CO2 浓度
-      ph: parseFloat(data.ph),    // 新增 pH 值
+      co2: parseFloat(data.co2),
+      ph: parseFloat(data.ph),
+      light: parseFloat(data.light),          // 新增 光照强度
+      soilMoisture: parseFloat(data.soilMoisture), // 新增 土壤湿度
       timestamp: data.timestamp
     });
     
@@ -145,6 +149,12 @@ app.get('/api/stats', (req, res) => {
           min_ph: null,
           max_ph: null,
           avg_ph: null,
+          min_light: null,           // 新增 光照强度统计
+          max_light: null,           // 新增 光照强度统计
+          avg_light: null,           // 新增 光照强度统计
+          min_soilMoisture: null,    // 新增 土壤湿度统计
+          max_soilMoisture: null,    // 新增 土壤湿度统计
+          avg_soilMoisture: null,    // 新增 土壤湿度统计
           total_records: 0
         }
       });
@@ -152,8 +162,10 @@ app.get('/api/stats', (req, res) => {
     
     const temperatures = filteredData.map(item => item.temperature);
     const humidities = filteredData.map(item => item.humidity);
-    const co2s = filteredData.map(item => item.co2);        // 新增 CO2 浓度
-    const phs = filteredData.map(item => item.ph);          // 新增 pH 值
+    const co2s = filteredData.map(item => item.co2);
+    const phs = filteredData.map(item => item.ph);
+    const lights = filteredData.map(item => item.light);          // 新增 光照强度
+    const soilMoistures = filteredData.map(item => item.soilMoisture); // 新增 土壤湿度
     
     const result = {
       min_temperature: Math.min(...temperatures),
@@ -162,12 +174,18 @@ app.get('/api/stats', (req, res) => {
       min_humidity: Math.min(...humidities),
       max_humidity: Math.max(...humidities),
       avg_humidity: humidities.reduce((a, b) => a + b, 0) / humidities.length,
-      min_co2: Math.min(...co2s),                           // 新增 CO2 统计
-      max_co2: Math.max(...co2s),                           // 新增 CO2 统计
-      avg_co2: co2s.reduce((a, b) => a + b, 0) / co2s.length, // 新增 CO2 统计
-      min_ph: Math.min(...phs),                             // 新增 pH 统计
-      max_ph: Math.max(...phs),                             // 新增 pH 统计
-      avg_ph: phs.reduce((a, b) => a + b, 0) / phs.length,  // 新增 pH 统计
+      min_co2: Math.min(...co2s),
+      max_co2: Math.max(...co2s),
+      avg_co2: co2s.reduce((a, b) => a + b, 0) / co2s.length,
+      min_ph: Math.min(...phs),
+      max_ph: Math.max(...phs),
+      avg_ph: phs.reduce((a, b) => a + b, 0) / phs.length,
+      min_light: Math.min(...lights),           // 新增 光照强度统计
+      max_light: Math.max(...lights),           // 新增 光照强度统计
+      avg_light: lights.reduce((a, b) => a + b, 0) / lights.length, // 新增 光照强度统计
+      min_soilMoisture: Math.min(...soilMoistures), // 新增 土壤湿度统计
+      max_soilMoisture: Math.max(...soilMoistures), // 新增 土壤湿度统计
+      avg_soilMoisture: soilMoistures.reduce((a, b) => a + b, 0) / soilMoistures.length, // 新增 土壤湿度统计
       total_records: filteredData.length
     };
     

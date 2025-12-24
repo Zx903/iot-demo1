@@ -20,7 +20,9 @@ client.on('connect', () => {
       temperature: (20 + Math.random() * 5).toFixed(2), // 温度范围 20-25°C
       humidity: (40 + Math.random() * 10).toFixed(2),   // 湿度范围 40-50%
       co2: (400 + Math.random() * 200).toFixed(2),      // CO2浓度范围 400-600 ppm
-      ph: (6.0 + Math.random() * 2).toFixed(2)          // pH值范围 6.0-8.0
+      ph: (6.0 + Math.random() * 2).toFixed(2),         // pH值范围 6.0-8.0
+      light: (200 + Math.random() * 800).toFixed(2),    // 光照强度范围 200-1000 lux
+      soilMoisture: (30 + Math.random() * 40).toFixed(2) // 土壤湿度范围 30-70%
     };
     const payload = JSON.stringify(data);
     client.publish(topic, payload, { qos: 0 }, (err) => {

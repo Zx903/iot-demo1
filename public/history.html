@@ -472,3 +472,73 @@
     </script>
 </body>
 </html>
+<!-- 在表格头部添加新列 -->
+<th>CO2 (ppm)</th>
+<th>pH值</th>
+<th>光照 (lux)</th>
+<th>土壤湿度 (%)</th>
+
+<!-- 在表格数据行中添加新列 -->
+<td>${parseFloat(row.co2).toFixed(2)}</td>
+<td>${parseFloat(row.ph).toFixed(2)}</td>
+<td>${parseFloat(row.light).toFixed(2)}</td>
+<td>${parseFloat(row.soilMoisture).toFixed(2)}</td>
+
+<!-- 在统计信息中添加新数据 -->
+<div class="stat-card">
+    <div class="stat-label">最低CO2</div>
+    <div class="stat-value" id="minCo2">--</div>
+    <div>ppm</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">最高CO2</div>
+    <div class="stat-value" id="maxCo2">--</div>
+    <div>ppm</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">平均CO2</div>
+    <div class="stat-value" id="avgCo2">--</div>
+    <div>ppm</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">最低pH</div>
+    <div class="stat-value" id="minPh">--</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">最高pH</div>
+    <div class="stat-value" id="maxPh">--</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">平均pH</div>
+    <div class="stat-value" id="avgPh">--</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">最低光照</div>
+    <div class="stat-value" id="minLight">--</div>
+    <div>lux</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">最高光照</div>
+    <div class="stat-value" id="maxLight">--</div>
+    <div>lux</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">平均光照</div>
+    <div class="stat-value" id="avgLight">--</div>
+    <div>lux</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">最低土壤湿度</div>
+    <div class="stat-value" id="minSoilMoisture">--</div>
+    <div>%</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">最高土壤湿度</div>
+    <div class="stat-value" id="maxSoilMoisture">--</div>
+    <div>%</div>
+</div>
+<div class="stat-card">
+    <div class="stat-label">平均土壤湿度</div>
+    <div class="stat-value" id="avgSoilMoisture">--</div>
+    <div>%</div>
+</div>
