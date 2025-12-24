@@ -62,6 +62,8 @@ client.on('message', (topic, message) => {
       deviceId: rawData.deviceId,
       temperature: rawData.temperature,
       humidity: rawData.humidity,
+      co2: rawData.co2,  // 新增 CO2 浓度
+      ph: rawData.ph,    // 新增 pH 值
       timestamp: rawData.ts ? new Date(rawData.ts).toISOString() : new Date().toISOString()
     };
     
@@ -78,6 +80,8 @@ client.on('message', (topic, message) => {
       device_id: data.deviceId || 'unknown',
       temperature: parseFloat(data.temperature),
       humidity: parseFloat(data.humidity),
+      co2: parseFloat(data.co2),  // 新增 CO2 浓度
+      ph: parseFloat(data.ph),    // 新增 pH 值
       timestamp: data.timestamp
     });
     
@@ -135,6 +139,12 @@ app.get('/api/stats', (req, res) => {
           min_humidity: null,
           max_humidity: null,
           avg_humidity: null,
+          min_co2: null,
+          max_co2: null,
+          avg_co2: null,
+          min_ph: null,
+          max_ph: null,
+          avg_ph: null,
           total_records: 0
         }
       });
@@ -142,6 +152,8 @@ app.get('/api/stats', (req, res) => {
     
     const temperatures = filteredData.map(item => item.temperature);
     const humidities = filteredData.map(item => item.humidity);
+    const co2s = filteredData.map(item => item.co2);        // 新增 CO2 浓度
+    const phs = filteredData.map(item => item.ph);          // 新增 pH 值
     
     const result = {
       min_temperature: Math.min(...temperatures),
@@ -150,6 +162,12 @@ app.get('/api/stats', (req, res) => {
       min_humidity: Math.min(...humidities),
       max_humidity: Math.max(...humidities),
       avg_humidity: humidities.reduce((a, b) => a + b, 0) / humidities.length,
+      min_co2: Math.min(...co2s),                           // 新增 CO2 统计
+      max_co2: Math.max(...co2s),                           // 新增 CO2 统计
+      avg_co2: co2s.reduce((a, b) => a + b, 0) / co2s.length, // 新增 CO2 统计
+      min_ph: Math.min(...phs),                             // 新增 pH 统计
+      max_ph: Math.max(...phs),                             // 新增 pH 统计
+      avg_ph: phs.reduce((a, b) => a + b, 0) / phs.length,  // 新增 pH 统计
       total_records: filteredData.length
     };
     
@@ -185,6 +203,14 @@ app.get('/api/history/range', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// API 路由：获取实时数据
+app.get('/api/realtime', (req, res) => {
+  res.json({
+    message: 'success',
+    data: latestData
+  });
 });
 
 io.on('connection', (socket) => {
